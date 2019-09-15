@@ -31,10 +31,7 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# Revision $Id$
 
-## Simple talker demo that listens to std_msgs/Strings published 
-## to the 'chatter' topic
 
 import rospy
 import dbw_mkz_msgs.msg
@@ -42,10 +39,16 @@ from dbw_mkz_msgs.msg import BrakeInfoReport
 import std_msgs
 import numpy as np
 import time
+import scipy.io as sio
+from scipy import interpolate
+
 global gearSet
 gearSet=0
+class Vehicle:
+        Vel=dbw_mkz_msgs.msg.SteeringReport()
 def callback(data):
         global gearSet
+        global interpFun2D
         print('start callbak')
         throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
         brake_class=dbw_mkz_msgs.msg.BrakeCmd()
@@ -70,44 +73,70 @@ def callback(data):
         # print(gear_class)
         r_wh=0.2413 # Radius of Wheel
         m=1800 # Approx weight of car
+        brakeGain=6
+        # Calculate Throttle Command first:
+        
+        CURRENTVEL=Vehicle.Vel.speed
+        TARGETACCEL=data.data # From ACC Controller
+        thr_temp=np.linspace(0.1,0.9,17)
+        vel_temp=CURRENTVEL
+        Znew=interpFun2D(thr_temp,vel_temp) # Bunch of Accelerations
+        if (TARGETACCEL<0):
+                THROTTLE_OUT=0.0
+        elif(TARGETACCEL>3.8):
+                THROTTLE_OUT=0.8
+        else: #Quite convoluted, see if there's a cleaner way later
+                for idx in range(0,(Znew.shape[0]-2)):
+                        lower=Znew[idx]
+                        upper=Znew[idx+1]
+                        if (TARGETACCEL>=lower)&(TARGETACCEL<upper):
+                                TARGETACCEL=0.05*(TARGETACCEL-lower)/(upper-lower)+thr_temp[idx]     
+                        else:
+                                idx=idx+1
         if data.data<0:
                 throttle_class.enable=False 
                 throttle_class.pedal_cmd=0
                 throttle_class.pedal_cmd_type=0
                 brake_class.enable=True# Enable Brake, disable throttle
-                brake_class.pedal_cmd_type= 2# Directly supply deceleration value
-                brake_class.pedal_cmd=6*abs(data.data) # Only accepts positive values
+                #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
+                brake_class.pedal_cmd_type= 1# Mode1, Unitless, Range 0.15 to 0.5
+                #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
+                brake_class.pedal_cmd=0.3*abs(data.data)+0.15 # For Mode 1
         else:
                 brake_class.enable=False # Disable Brake, enable throttle
                 brake_class.pedal_cmd=0
                 brake_class.pedal_cmd_type=0
                 throttle_class.enable=True
                 throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
-                throttle_class.pedal_cmd=0.15+0.19667*data.data
+                #throttle_class.pedal_cmd=0.15+0.19667*data.data# Originally stable, remove after enginemap works
+                throttle_class.pedal_cmd=THROTTLE_OUT
+
         if not rospy.is_shutdown():
                 log_Str = ('\n Brake: ', brake_class.pedal_cmd, ' \n Throttle:', throttle_class.pedal_cmd)
                 rospy.loginfo(log_Str)
                 brake_pub.publish(brake_class)
                 throttle_pub.publish(throttle_class)
 
+def velfun(data):
+    Vehicle.Vel.speed=data.speed
 def listener():
-
-
-    # In ROS, nodes are uniquely named. If two nodes with the same
-    # name are launched, the previous one is kicked off. The
-    # anonymous=True flag means that rospy will choose a unique
-    # name for our 'listener' node so that multiple listeners can
-    # run simultaneously.
-    
-    # Temp Publisher to test code internally
+    # Subscribe to external ACC/CACC controller
         rospy.init_node('ll_controller', anonymous=True)
         rate = rospy.Rate(50) # 50hz
+        rospy.Subscriber('vehicle/steering_report',dbw_mkz_msgs.msg.SteeringReport,velfun)
         rospy.Subscriber('x_acc/control_input', std_msgs.msg.Float32, callback)
         rospy.loginfo(rospy.get_caller_id()+'x_acc received')
+
         rospy.spin()
 
 if __name__=='__main__':
     try:
+        Mapdata=sio.loadmat('LookupTable.mat')
+        global interpFun2D
+        thrGrid=Mapdata['X_Lup']
+        velGrid=Mapdata['Y_Lup']
+        z1=Mapdata['Z_Lup']
+        interpFun2D=interpolate.interp2d(thrGrid,velGrid,z1)
         listener()
     except rospy.ROSInterruptException:
         pass

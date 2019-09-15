@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2008, Willow Garage, Inc.
 # All rights reserved.
-## Standard ACC implementation, with no use of acceleration from radar, or otherwise
+## Standard CACC implementation, using transmitted acceleration from previous vehicle
 
 import rospy
 import std_msgs
@@ -16,26 +16,31 @@ global Kv
 global L # Stand Still Distance
 global CurrentVel # Velocity of Ego vehicle
 global timeHeadway # Desired Time Headway
+global PrevAccel
+PrevAccel=0 # Start Condition
 CurrentVel=0 # Start condition
 timeHeadway=0.5 # In seconds
 L=20# in meters
 Kp=0.01
 Kv=0.01
+Ka=0.3
 CipvID=0
 # Callback1 uses the identified track and current velocity to calculate controller effort(accel) and publishes it
 def callback1(data):
     global CipvID
     global Kp
     global Kv
+    global Ka
     global CurrentVel
     global timeHeadway
+    global PrevAccel
     acc_class=std_msgs.msg.Float32()
     acc_pub = rospy.Publisher('x_acc/control_input',std_msgs.msg.Float32,queue_size=1000)
     if  data.track_ID==CipvID:
         print(CipvID)
         meas_range=data.track_range # x_{i-1} -x_i
         meas_range_rate=data.track_range_rate
-        acc_class.data=-Kp*(-meas_range+L+CurrentVel*timeHeadway)-Kv*(-meas_range_rate)
+        acc_class.data=Ka*PrevAccel-Kp*(-meas_range+L+CurrentVel*timeHeadway)-Kv*(-meas_range_rate)
         if not rospy.is_shutdown():
                     log_Str = ('Published target Controller Output ( Pure ACC):',acc_class)
                     rospy.loginfo(log_Str)
@@ -65,11 +70,14 @@ def callback2(data2):
 def callback3(data3):
     global CurrentVel
     CurrentVel=data3.speed
-    # print (CurrentVel)
+def callback4(data4):
+    global PrevAccel
+    PrevAccel=data4.data
 def listener():
         from dbw_mkz_msgs.msg import SteeringReport
         from delphi_esr_msgs.msg import EsrStatus4
         rospy.init_node('acc_controller', anonymous=True)
+        rospy.Subscriber('accel_tx/mkz', std_msgs.msg.Float32, callback4)
         rospy.Subscriber('vehicle/steering_report', dbw_mkz_msgs.msg.SteeringReport, callback3)
         rospy.Subscriber('parsed_tx/radarstatus4', delphi_esr_msgs.msg.EsrStatus4, callback2)
         rospy.Subscriber('parsed_tx/radartrack', delphi_esr_msgs.msg.EsrTrack,  callback1)
