@@ -5,6 +5,7 @@
 import rospy
 import dbw_mkz_msgs.msg
 from dbw_mkz_msgs.msg import BrakeInfoReport
+from dbw_mkz_msgs.msg import BrakeCmd
 import std_msgs
 import numpy as np
 import time
@@ -22,10 +23,10 @@ def talker():
         rospy.init_node('ll_controller', anonymous=True)
         rate = rospy.Rate(50) # 50hz
         throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
-        # brake_class=dbw_mkz_msgs.msg.BrakeCmd()
-        # brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=1000)
+        #brake_class=dbw_mkz_msgs.msg.BrakeCmd()
+        #brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=1000)
         throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=1000)
-        # print(gear_class
+        #print(gear_class)
         throttle_class.enable=True
         throttle_class.pedal_cmd=0.85
         #throttle_class.pedal_cmd=args.thr_cmd
