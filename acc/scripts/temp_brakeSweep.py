@@ -37,11 +37,11 @@ def talker():
         # throttle_class.pedal_cmd=0.85
         # BRAKES:
         brake_class.enable=True # Disable Brake, enable throttle
-        brake_class.pedal_cmd=0
-        brake_class.pedal_cmd_type=1 # Unitless, range 0.15 to 0.50
-        #brake_class.pedal_cmd_type=2 # Percent of maximum torque, range 0 to 1
-        #brake_class.pedal_cmd_type=3 # Nm, range 0 to 3412, open-loop
-        #brake_class.pedal_cmd_type=4 # Nm, range 0 to 3412, closed-loop
+        brake_class.pedal_cmd=3000
+        # brake_class.pedal_cmd_type=1 # WORKS,Unitless, range 0.15 to 0.50
+        # brake_class.pedal_cmd_type=2 #WORKS# Percent of maximum torque, range 0 to 1
+        # brake_class.pedal_cmd_type=3 # WORKSNm, range 0 to 3412, open-loop
+        brake_class.pedal_cmd_type=4 # Nm, WORKS range 0 to 3412, closed-loop
         #brake_class.pedal_cmd_type=6 # m/s^2, range 0 to 10
         
         while not rospy.is_shutdown():
