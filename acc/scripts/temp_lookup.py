@@ -14,33 +14,58 @@ import numpy as np
 import scipy.io as sio
 from scipy import interpolate
 
+CURRENTVEL=6
+targetAccel=0.6
 
-CURRENTVEL=10
-TARGETACCEL=1
-data=sio.loadmat('LookupTable.mat')
-thrGrid=data['X_Lup']
-velGrid=data['Y_Lup']
-z1=data['Z_Lup']
-interpFun2D=interpolate.interp2d(thrGrid,velGrid,z1)
+Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
+CMDARR_THR=np.array(Mapdata['X_Lup']).T
+VELGRID_THR=np.array(Mapdata['Y_Lup']).T
+z1=Mapdata['Z_Lup']
+Mapdata=sio.loadmat('LookupPy_BrakeMKZ.mat')
+CMDARR_BRK=np.array(Mapdata['X_LupBr']).T
+VELGRID_BRK=np.array(Mapdata['Y_LupBr']).T
+z2=Mapdata['Z_LupBr']
+interpFun2DEng=interpolate.interp2d(CMDARR_THR,VELGRID_THR,z1)
+interpFun2DBrk=interpolate.interp2d(CMDARR_BRK,VELGRID_BRK,z2)
+ZnewEng=interpFun2DEng(CMDARR_THR[0],CURRENTVEL) # Bunch of Accelerations
+ZnewBrk=interpFun2DBrk(CMDARR_BRK[0],CURRENTVEL) # Bunch of Accelerations
 
-thr_temp=np.linspace(0.1,0.9,17)
-vel_temp=CURRENTVEL
-Znew=interpFun2D(thr_temp,vel_temp) # Bunch of Accelerations
-if (TARGETACCEL<0):
-    THROTTLE_OUT=0
-elif(TARGETACCEL>3.8):
-    THROTTLE_OUT=0.8
-else: #Quite convoluted, see if there's a cleaner way later
-    for idx in range(0,(Znew.shape[0]-2)):
-        lower=Znew[idx]
-        upper=Znew[idx+1]
-        if (TARGETACCEL>=lower)&(TARGETACCEL<upper):
-            TARGETACCEL=0.05*(TARGETACCEL-lower)/(upper-lower)+thr_temp[idx]     
-        else:
-            idx=idx+1
+# print(ZnewBrk)
+# print(thrGrid)
+# print(velGrid)
+if (targetAccel<=0):
+    throttle_out=0.0
+    if (targetAccel<=-4):
+        brake_out=3412
+    else: #Quite convoluted, see if there's a cleaner way later
+        for idx in range(0,(ZnewBrk.shape[0]-2)):
+            # print(idx)
+            lower=ZnewBrk[idx]
+            upper=ZnewBrk[idx+1]
+            if (targetAccel<=lower)&(targetAccel>upper): #Reverse, since negative values for break
+                # print('satisfied')
+                brake_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
+                break
+            else:
+                idx=idx+1
         
+else:
+    brake_out=0
+    if(targetAccel>3):
+        throttle_out=0.8
+    else: #Quite convoluted, see if there's a cleaner way later
+        for idx in range(0,(ZnewEng.shape[0]-2)):
+            lower=ZnewEng[idx]
+            upper=ZnewEng[idx+1]
+            if (targetAccel>=lower)&(targetAccel<upper):
+                throttle_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_THR[0][idx]     
+            else:
+                idx=idx+1
 
-print(TARGETACCEL)
+
+
+print('throttleOut: '+str(throttle_out))
+print('brakeOut: ' +str(brake_out))
 
 ''' #print(scipy.interp.bisplrep(temp[:][0],temp[:][1],temp[:][2]))
 fig=plt.figure()

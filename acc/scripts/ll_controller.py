@@ -3,143 +3,122 @@
 #
 # Copyright (c) 2008, Willow Garage, Inc.
 # All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-#  * Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-#  * Redistributions in binary form must reproduce the above
-#    copyright notice, this list of conditions and the following
-#    disclaimer in the documentation and/or other materials provided
-#    with the distribution.
-#  * Neither the name of Willow Garage, Inc. nor the names of its
-#    contributors may be used to endorse or promote products derived
-#    from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-
 
 import rospy
 import dbw_mkz_msgs.msg
-from dbw_mkz_msgs.msg import BrakeInfoReport
+from geometry_msgs.msg import TwistStamped
 import std_msgs
 import numpy as np
 import time
 import scipy.io as sio
 from scipy import interpolate
 
-global gearSet
-global THROTTLE_OUT
-THROTTLE_OUT=0.0
-gearSet=0
-class Vehicle:
-        Vel=dbw_mkz_msgs.msg.SteeringReport()
-def callback(data):
-        global gearSet
-        global interpFun2D
-        global THROTTLE_OUT
-        print('start callbak')
-        throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
-        brake_class=dbw_mkz_msgs.msg.BrakeCmd()
-        brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=1000)
-        throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=1000)
-        #### Only use if Need to switch Gear in gazebo simulation.
-        # #if gearSet==0:
-        # gear_pub=rospy.Publisher('vehicle/gear_cmd',dbw_mkz_msgs.msg.GearCmd,queue_size=1000)
-        # gear_class=dbw_mkz_msgs.msg.GearCmd()
-        # gear_cmd_drive_class=dbw_mkz_msgs.msg.Gear()
-        # gear_cmd_drive_class.gear=4
-        # gear_class.cmd=gear_cmd_drive_class
-        # rospy.loginfo('Gear Published to Drive')
-        # print(gearSet)
-        # # PRessing brake before shifting out of gear
-        # brake_class.enable=True# Enable Brake, disable throttle
-        # brake_class.pedal_cmd_type=6 # Decel Val
-        # brake_class.pedal_cmd=0 # Only accepts positive values
-        # brake_pub.publish(brake_class)
-        # gear_pub.publish(gear_class)
-        # gearSet=4
-        # print(gear_class)
-        r_wh=0.2413 # Radius of Wheel
-        m=1800 # Approx weight of car
-        brakeGain=6
-        # Calculate Throttle Command first:
-        
-        CURRENTVEL=Vehicle.Vel.speed
-        TARGETACCEL=data.data # From ACC Controller
-        thr_temp=np.linspace(0.1,0.9,17)
-        vel_temp=CURRENTVEL
-        Znew=interpFun2D(thr_temp,vel_temp) # Bunch of Accelerations
-        if (TARGETACCEL<=0):
-                THROTTLE_OUT=0.0
-        elif(TARGETACCEL>3):
-                THROTTLE_OUT=0.8
+
+
+def pedalPublisher(data):
+    global interpFun2DEng
+    global interpFun2DBrk
+    global CURRENTVEL
+    global CMDARR_THR
+    global VELGRID_THR
+    global CMDARR_BRK
+    global VELGRID_BRK
+    throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
+    brake_class=dbw_mkz_msgs.msg.BrakeCmd()
+    brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=10)
+    throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=10)
+    r_wh=0.2413 # Radius of Wheel
+    m=1800 # Approx weight of car
+    # Calculate Throttle Command first:
+    targetAccel=data.data # From ACC Controller
+    ZnewEng=interpFun2DEng(CMDARR_THR[0],CURRENTVEL) # Bunch of Accelerations
+    ZnewBrk=interpFun2DBrk(CMDARR_BRK[0],CURRENTVEL) # Bunch of Accelerations
+    if (targetAccel<=0):
+        throttle_out=0.0
+        if (targetAccel<=-4):
+            brake_out=3412
         else: #Quite convoluted, see if there's a cleaner way later
-                for idx in range(0,(Znew.shape[0]-1)):
-                        lower=Znew[idx]
-                        upper=Znew[idx+1]
-                        if (TARGETACCEL>=lower)&(TARGETACCEL<upper):
-                                THROTTLE_OUT=0.05*(TARGETACCEL-lower)/(upper-lower)+thr_temp[idx]     
-                        else:
-                                idx=idx+1
-        if data.data<0:
-                throttle_class.enable=False 
-                throttle_class.pedal_cmd=0
-                throttle_class.pedal_cmd_type=0
-                brake_class.enable=True# Enable Brake, disable throttle
-                #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
-                brake_class.pedal_cmd_type= 1# Mode1, Unitless, Range 0.15 to 0.5
-                #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
-                brake_class.pedal_cmd=0.3*abs(data.data)+0.15 # For Mode 1
-        else:
-                brake_class.enable=False # Disable Brake, enable throttle
-                brake_class.pedal_cmd=0
-                brake_class.pedal_cmd_type=0
-                throttle_class.enable=True
-                throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
-                throttle_class.pedal_cmd=0.15+0.19667*data.data# Originally stable, remove after enginemap works
-                #throttle_class.pedal_cmd=0.6*THROTTLE_OUT
+            for idx in range(0,(ZnewBrk.shape[0]-2)):
+                # print(idx)
+                lower=ZnewBrk[idx]
+                upper=ZnewBrk[idx+1]
+                if (targetAccel<=lower)&(targetAccel>upper): #Reverse, since negative values for break
+                    # print('satisfied')
+                    brake_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
+                    break
+                else:
+                    idx=idx+1
+            
+    else:
+        brake_out=0
+        if(targetAccel>3):
+            throttle_out=0.8
+        else: #Quite convoluted, see if there's a cleaner way later
+            for idx in range(0,(ZnewEng.shape[0]-2)):
+                lower=ZnewEng[idx]
+                upper=ZnewEng[idx+1]
+                if (targetAccel>=lower)&(targetAccel<upper):
+                    throttle_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_THR[0][idx]     
+                else:
+                    idx=idx+1
 
-        if not rospy.is_shutdown():
-                log_Str = ('\n Brake: ', brake_class.pedal_cmd, ' \n Throttle:', throttle_class.pedal_cmd)
-                rospy.loginfo(log_Str)
-                brake_pub.publish(brake_class)
-                throttle_pub.publish(throttle_class)
 
-def velfun(data):
-    Vehicle.Vel.speed=data.speed
+
+    if targetAccel<0:
+            throttle_class.enable=False 
+            throttle_class.pedal_cmd=0
+            throttle_class.pedal_cmd_type=0
+            brake_class.enable=True# Enable Brake, disable throttle
+            #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
+            brake_class.pedal_cmd_type= 4# Mode1, Unitless, Range 0.15 to 0.5
+            #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
+            brake_class.pedal_cmd=brake_out # For Mode 1
+    else:
+            brake_class.enable=False # Disable Brake, enable throttle
+            brake_class.pedal_cmd=0
+            brake_class.pedal_cmd_type=0
+            throttle_class.enable=True
+            throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
+            throttle_class.pedal_cmd=throttle_out# Originally stable, remove after enginemap works
+            #throttle_class.pedal_cmd=0.6*throttle_out
+    if not rospy.is_shutdown():
+            log_Str = ('\n Brake: ', brake_class.pedal_cmd, ' \n Throttle:', throttle_class.pedal_cmd)
+            rospy.loginfo(log_Str)
+            brake_pub.publish(brake_class)
+            throttle_pub.publish(throttle_class)
+
+def velfun(self,data):
+    global CURRENTVEL
+    CURRENTVEL=data.twist.linear.x
+
 def listener():
     # Subscribe to external ACC/CACC controller
-        rospy.init_node('ll_controller', anonymous=True)
-        rate = rospy.Rate(50) # 50hz
-        rospy.Subscriber('vehicle/steering_report',dbw_mkz_msgs.msg.SteeringReport,velfun)
-        rospy.Subscriber('x_acc/control_input', std_msgs.msg.Float32, callback)
-        rospy.loginfo(rospy.get_caller_id()+'x_acc received')
-
-        rospy.spin()
+    rospy.init_node('ll_controller', anonymous=True)
+    rate = rospy.Rate(20) # 50hz
+    # rospy.Subscriber('vehicle/steering_report',dbw_mkz_msgs.msg.SteeringReport,velfun)
+    rospy.Subscriber('/vehicle/twist', TwistStamped,velfun)
+    rospy.Subscriber('/x_acc/control_input', std_msgs.msg.Float32, pedalPublisher)
+    rospy.loginfo_once(rospy.get_caller_id()+'x_acc received')
+    rospy.spin()
 
 if __name__=='__main__':
     try:
-        Mapdata=sio.loadmat('LookupTable.mat')
-        global interpFun2D
-        thrGrid=Mapdata['X_Lup']
-        velGrid=Mapdata['Y_Lup']
+        global interpFun2DEng
+        global interpFun2DBrk
+        global CMDARR_THR
+        global VELGRID_THR
+        global CMDARR_BRK
+        global VELGRID_BRK
+        Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
+        CMDARR_THR=np.array(Mapdata['X_Lup']).T
+        VELGRID_THR=np.array(Mapdata['Y_Lup']).T
         z1=Mapdata['Z_Lup']
-        interpFun2D=interpolate.interp2d(thrGrid,velGrid,z1)
+        Mapdata=sio.loadmat('LookupPy_BrakeMKZ.mat')
+        CMDARR_BRK=np.array(Mapdata['X_LupBr']).T
+        VELGRID_BRK=np.array(Mapdata['Y_LupBr']).T
+        z2=Mapdata['Z_LupBr']
+        interpFun2DEng=interpolate.interp2d(CMDARR_THR,VELGRID_THR,z1)
+        interpFun2DBrk=interpolate.interp2d(CMDARR_BRK,VELGRID_BRK,z2)
         listener()
     except rospy.ROSInterruptException:
         pass
