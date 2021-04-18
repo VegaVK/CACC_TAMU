@@ -31,7 +31,7 @@ def callback1(data):
     global timeHeadway
     acc_class=std_msgs.msg.Float32()
     acc_pub = rospy.Publisher('x_acc/control_input',std_msgs.msg.Float32,queue_size=1000)
-    if  data.track_ID==CipvID:
+    if  data.track_id==CipvID:
         print(CipvID)
         meas_range=data.track_range # x_{i-1} -x_i
         meas_range_rate=data.track_range_rate
@@ -52,13 +52,13 @@ def callback2(data2):
     from dbw_mkz_msgs.msg import SteeringReport
     from delphi_esr_msgs.msg import EsrStatus4
     global CipvID
-    print(data2.pathIdAcc)
-    if (not (data2.pathIdAcc==0) or not(data2.pathIdAccStat==0)): # pick one or the other
+    print(data2.path_id_acc)
+    if (not (data2.path_id_acc==0) or not(data2.path_id_acc_stat==0)): # pick one or the other
         
-        if data2.pathIdAcc==0:
-            CipvID=data2.pathIdAccStat-1
+        if data2.path_id_acc==0:
+            CipvID=data2.path_id_acc_stat-1
         else:
-            CipvID=data2.pathIdAcc-1
+            CipvID=data2.path_id_acc-1
     else:
         CipvID=0 # Or else, No track found
 # Callback 3 is for obtaining ego vehicle velocity

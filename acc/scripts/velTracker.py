@@ -20,11 +20,19 @@ global Kp
 global Kv
 global hw # Time headway - Not used here
 global clockStore # for getting time step
+global PREV_ERROR_V
+global CURRENTVEL
+global CURRENTACCEL
 
+#initialize
 d=10
 Ki=0.05
 Kp=1
-Kd=0.5
+Kv=0.5
+PREV_ERROR_V=0.0
+CURRENTACCEL=0.0
+CURRENTVEL=0.0
+
 
 def accelPub(DesiredVel):
     global CURRENTVEL
@@ -66,12 +74,12 @@ def velfun(data,DesiredVel):
 
 def accelfun(data):
     global CURRENTACCEL
-    CURRENTACCEL=data.accel_over_ground.data
+    CURRENTACCEL=data.accel_over_ground
 
 
 def listener():
     # Subscribe to external ACC/CACC controller
-    inputTemp=float(input("Please enter the desired velocity in MPH: ")
+    inputTemp=float(input("Please enter the desired velocity in MPH: "))
     DesiredVel=inputTemp*0.44704
     rospy.init_node('vel_tracker', anonymous=True)
     rospy.Subscriber('/vehicle/twist', TwistStamped,velfun,(DesiredVel))
