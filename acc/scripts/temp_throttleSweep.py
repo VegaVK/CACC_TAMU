@@ -28,7 +28,7 @@ def talker():
         throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=1000)
         #print(gear_class)
         throttle_class.enable=True
-        throttle_class.pedal_cmd=0.85
+        throttle_class.pedal_cmd=0.25
         #throttle_class.pedal_cmd=args.thr_cmd
         throttle_class.pedal_cmd_type=1
         while not rospy.is_shutdown():

@@ -6,12 +6,13 @@ def talker():
     rospy.init_node('enable_publisher', anonymous=True)
     rate = rospy.Rate(10) # 50hz
     accelPub=rospy.Publisher('x_acc/control_input',std_msgs.msg.Float32, queue_size=10)
-    while not rospy.is_shutdown():
-        inputval=float(input("Please enter the desired accel in m/s^2: "))
+    inputval=float(input("Please enter the desired accel in m/s^2: "))
 
+    while not rospy.is_shutdown():
+       
         rospy.loginfo('Published Simulated')
         accelPub.publish(inputval)
-        #rate.sleep()
+        rate.sleep()
 if __name__=='__main__':
     try:
         talker()

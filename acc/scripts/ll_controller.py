@@ -37,6 +37,7 @@ def pedalPublisher(data):
         throttle_out=0.0
         if (targetAccel<=-4):
             brake_out=3412
+            
         else: #Quite convoluted, see if there's a cleaner way later
             for idx in range(0,(ZnewBrk.shape[0]-2)):
                 # print(idx)
@@ -48,6 +49,10 @@ def pedalPublisher(data):
                     break
                 else:
                     idx=idx+1
+                    if idx >(ZnewBrk.shape[0]-2):
+                        throttle_out=0.8 # Quick hack if input is out of range, done on runway. check at home
+
+                    
             
     else:
         brake_out=0
@@ -61,9 +66,6 @@ def pedalPublisher(data):
                     throttle_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_THR[0][idx]     
                 else:
                     idx=idx+1
-
-
-
     if targetAccel<0:
             throttle_class.enable=False 
             throttle_class.pedal_cmd=0
@@ -87,7 +89,7 @@ def pedalPublisher(data):
             brake_pub.publish(brake_class)
             throttle_pub.publish(throttle_class)
 
-def velfun(self,data):
+def velfun(data):
     global CURRENTVEL
     CURRENTVEL=data.twist.linear.x
 
@@ -109,6 +111,15 @@ if __name__=='__main__':
         global VELGRID_THR
         global CMDARR_BRK
         global VELGRID_BRK
+
+        # global interpFun2DEng
+        # global interpFun2DBrk
+        global CURRENTVEL
+        # global CMDARR_THR
+        # global VELGRID_THR
+        # global CMDARR_BRK
+        # global VELGRID_BRK
+        CURRENTVEL=0.0
         Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
         CMDARR_THR=np.array(Mapdata['X_Lup']).T
         VELGRID_THR=np.array(Mapdata['Y_Lup']).T

@@ -26,9 +26,9 @@ global CURRENTACCEL
 
 #initialize
 d=10
-Ki=0.05
-Kp=1
-Kv=0.5
+Ki=0.5
+Kp=0.8
+Kv=0.3
 PREV_ERROR_V=0.0
 CURRENTACCEL=0.0
 CURRENTVEL=0.0

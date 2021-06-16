@@ -37,7 +37,7 @@ def talker():
         # throttle_class.pedal_cmd=0.85
         # BRAKES:
         brake_class.enable=True # Disable Brake, enable throttle
-        brake_class.pedal_cmd=3000
+        brake_class.pedal_cmd=1000
         # brake_class.pedal_cmd_type=1 # WORKS,Unitless, range 0.15 to 0.50
         # brake_class.pedal_cmd_type=2 #WORKS# Percent of maximum torque, range 0 to 1
         # brake_class.pedal_cmd_type=3 # WORKSNm, range 0 to 3412, open-loop
