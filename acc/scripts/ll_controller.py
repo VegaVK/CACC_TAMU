@@ -39,19 +39,24 @@ def pedalPublisher(data):
             brake_out=3412
             
         else: #Quite convoluted, see if there's a cleaner way later
-            for idx in range(0,(ZnewBrk.shape[0]-2)):
+            for idx in range(0,(ZnewBrk.shape[0]-1)):
                 # print(idx)
-                print(ZnewBrk)
-                lower=ZnewBrk[idx]
+                # print(ZnewBrk.shape[0]-1)
+                if idx==0:
+                    lower=0 # TODO: First element, force it to be zero (possibly edit this in the map directly in future)
+                else:
+                    lower=ZnewBrk[idx]
                 upper=ZnewBrk[idx+1]
                 if (targetAccel<=lower)&(targetAccel>upper): #Reverse, since negative values for break
                     # print('satisfied')
                     brake_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
                     break
                 else:
-                    idx=idx+1
-                    if idx >(ZnewBrk.shape[0]-2):
+                    # idx=idx+1
+                    if idx >=(ZnewBrk.shape[0]-2):
                         brake_out=3400 # TODO: Double check this, was modified on Jun17, was throttle_out=0.8 earlier.
+                    else:
+                        continue
 
                     
             
@@ -60,13 +65,26 @@ def pedalPublisher(data):
         if(targetAccel>3):
             throttle_out=0.8
         else: #Quite convoluted, see if there's a cleaner way later
-            for idx in range(0,(ZnewEng.shape[0]-2)):
-                lower=ZnewEng[idx]
+            # print(ZnewEng)
+            # print(ZnewEng.shape[0]-1)
+            for idx in range(0,(ZnewEng.shape[0]-1)):
+                # print('idx:')
+                # print(idx)
+                if idx==0:
+                    lower=0 # TODO: First element, force it to be zero (possibly edit this in the map directly in future)
+                else:
+                    lower=ZnewEng[idx]
+                print(lower)
                 upper=ZnewEng[idx+1]
                 if (targetAccel>=lower)&(targetAccel<upper):
                     throttle_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_THR[0][idx]     
                 else:
-                    idx=idx+1
+                    # idx=idx+1
+                    if idx >=(ZnewEng.shape[0]-2):
+                        throttle_out=0.8 
+                    else:
+                        continue
+                    # pass
     if targetAccel<0:
             throttle_class.enable=False 
             throttle_class.pedal_cmd=0
