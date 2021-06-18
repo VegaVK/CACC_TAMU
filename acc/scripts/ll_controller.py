@@ -41,6 +41,7 @@ def pedalPublisher(data):
         else: #Quite convoluted, see if there's a cleaner way later
             for idx in range(0,(ZnewBrk.shape[0]-2)):
                 # print(idx)
+                print(ZnewBrk)
                 lower=ZnewBrk[idx]
                 upper=ZnewBrk[idx+1]
                 if (targetAccel<=lower)&(targetAccel>upper): #Reverse, since negative values for break
@@ -50,7 +51,7 @@ def pedalPublisher(data):
                 else:
                     idx=idx+1
                     if idx >(ZnewBrk.shape[0]-2):
-                        throttle_out=0.8 # Quick hack if input is out of range, done on runway. check at home
+                        brake_out=3400 # TODO: Double check this, was modified on Jun17, was throttle_out=0.8 earlier.
 
                     
             
