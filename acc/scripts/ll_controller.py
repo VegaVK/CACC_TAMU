@@ -47,7 +47,7 @@ def pedalPublisher(data):
                 else:
                     lower=ZnewBrk[idx]
                 upper=ZnewBrk[idx+1]
-                if (targetAccel<=lower)&(targetAccel>upper): #Reverse, since negative values for break
+                if (targetAccel<=lower) and (targetAccel>upper): #Reverse, since negative values for break
                     # print('satisfied')
                     brake_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
                     break
@@ -76,12 +76,16 @@ def pedalPublisher(data):
                     lower=ZnewEng[idx]
                 print(lower)
                 upper=ZnewEng[idx+1]
-                if (targetAccel>=lower)&(targetAccel<upper):
-                    throttle_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_THR[0][idx]     
+                if  (targetAccel<upper):
+                    throttle_out=(0.05)*(upper-targetAccel)/(upper-lower)+CMDARR_THR[0][idx]   #  Seems wrong, temp fix below
+                    # throttle_out= 
+                    throttle_out=CMDARR_THR[0][idx] 
                 else:
                     # idx=idx+1
-                    if idx >=(ZnewEng.shape[0]-2):
+                    if (idx >=(ZnewEng.shape[0]-2)) and targetAccel>=upper:
                         throttle_out=0.8 
+                    elif targetAccel<=upper: # REALLY  BAD FIX< IN RUNWAY< REMOVE
+                        throttle_out=0.5
                     else:
                         continue
                     # pass
