@@ -7,12 +7,14 @@
 import rospy
 import dbw_mkz_msgs.msg
 from geometry_msgs.msg import TwistStamped
+from rospy.core import logwarn
 import std_msgs
 import numpy as np
 import time
 import scipy.io as sio
 from scipy import interpolate
-
+# TODO: if accel recieved is zero, maintain current velocity at time of command
+# TODO: remove global variables, switch to class based model
 
 
 def pedalPublisher(data):
@@ -25,19 +27,18 @@ def pedalPublisher(data):
     global VELGRID_BRK
     throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
     brake_class=dbw_mkz_msgs.msg.BrakeCmd()
-    brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=10)
-    throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=10)
+    brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=2)
+    throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=2)
     r_wh=0.2413 # Radius of Wheel
     m=1800 # Approx weight of car
     # Calculate Throttle Command first:
     targetAccel=data.data # From ACC Controller
     ZnewEng=interpFun2DEng(CMDARR_THR[0],CURRENTVEL) # Bunch of Accelerations
     ZnewBrk=interpFun2DBrk(CMDARR_BRK[0],CURRENTVEL) # Bunch of Accelerations
-    if (targetAccel<=0):
+    if (targetAccel<0):
         throttle_out=0.0
         if (targetAccel<=-4):
             brake_out=3412
-            
         else: #Quite convoluted, see if there's a cleaner way later
             for idx in range(0,(ZnewBrk.shape[0]-1)):
                 # print(idx)
@@ -49,7 +50,7 @@ def pedalPublisher(data):
                 upper=ZnewBrk[idx+1]
                 if (targetAccel<=lower) and (targetAccel>upper): #Reverse, since negative values for break
                     # print('satisfied')
-                    brake_out=(0.05)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
+                    brake_out=(100)*(targetAccel-lower)/(upper-lower)+CMDARR_BRK[0][idx]     
                     break
                 else:
                     # idx=idx+1
@@ -60,7 +61,7 @@ def pedalPublisher(data):
 
                     
             
-    else:
+    elif(targetAccel>0):
         brake_out=0
         if(targetAccel>3):
             throttle_out=0.8
@@ -74,21 +75,25 @@ def pedalPublisher(data):
                     lower=0 # TODO: First element, force it to be zero (possibly edit this in the map directly in future)
                 else:
                     lower=ZnewEng[idx]
-                print(lower)
+                
+                
                 upper=ZnewEng[idx+1]
+                # print(upper)
                 if  (targetAccel<upper):
-                    throttle_out=(0.05)*(upper-targetAccel)/(upper-lower)+CMDARR_THR[0][idx]   #  Seems wrong, temp fix below
-                    # throttle_out= 
-                    throttle_out=CMDARR_THR[0][idx] 
+                    throttle_out=CMDARR_THR[0][idx+1]-(0.05)*(upper-targetAccel)/(upper-lower)   
+                    break
+
                 else:
                     # idx=idx+1
                     if (idx >=(ZnewEng.shape[0]-2)) and targetAccel>=upper:
                         throttle_out=0.8 
-                    elif targetAccel<=upper: # REALLY  BAD FIX< IN RUNWAY< REMOVE
-                        throttle_out=0.5
+
                     else:
                         continue
                     # pass
+    elif(targetAccel==0):
+        logwarn('Switching to Cruise Control')
+        pass # TODO: add vel tracker code here
     if targetAccel<0:
             throttle_class.enable=False 
             throttle_class.pedal_cmd=0
