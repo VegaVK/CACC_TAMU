@@ -18,19 +18,18 @@ from cv_bridge import CvBridge, CvBridgeError
 
 def main():
     rospy.init_node('acc_controller', anonymous=True)
-    vsInst=controller()
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down")
+    accInst=ACCcontroller()
+    rospy.spin()
 
-class controller():
+
+class ACCcontroller():
     def __init__(self):
         self.CurrentVel=0 # Start condition
         self.timeHeadway=0.5# In seconds
         self.L=15# in meters
-        self.Kp=0.01
-        self.Kv=0.01
+        self.Kp=0.1
+        self.Kv=0.1
+        self.BrakeDecelGain=1.0 # Additional gain for braking deceleration, >1 for harder decel
         self.CipvID=0
         self.PrevTrackID=self.CipvID
         self.CamXOffset=2.36#=93 inches, measured b/w cam and Rdr, in x direction
@@ -49,8 +48,8 @@ class controller():
         rospy.Subscriber('Thermal_Panorama', Image,  self.plotter)
             # rospy.loginfo(rospy.get_caller_id()+'x_acc received')
     # acc_calc uses the identified track and current velocity to calculate controller effort(accel) and publishes it
+    
     def acc_calc(self,data):
-        
         if  data.track_id==self.TargetOpt1:
             self.RadarTargetOpt1Data=data
         elif data.track_id==self.TargetOpt2:
@@ -60,12 +59,25 @@ class controller():
             self.RadarTargetData=data
             # print(CipvID)
             self.meas_range=data.track_range # x_{i-1} -x_i
-            print('Range:')
-            print(self.meas_range)
+            # print('Range:')
+            # print(self.meas_range)
             self.meas_range_rate=data.track_range_rate
             # print('RangeRate:')
             # print(self.meas_range_rate)
-            self.acc_class.data=-self.Kp*(-self.meas_range+self.L+self.CurrentVel*self.timeHeadway)-self.Kv*(-self.meas_range_rate)
+            
+            
+            targetAccel=-self.Kp*(-self.meas_range+self.L+self.CurrentVel*self.timeHeadway)-self.Kv*(-self.meas_range_rate)
+            if targetAccel<0:
+                self.acc_class.data=targetAccel*self.BrakeDecelGain
+            else:
+                self.acc_calc.data=targetAccel
+            print('Meas Dist:')
+            MeasHw=self.meas_range
+            print(MeasHw)
+            print('Des Dist:')
+            DesHw=self.L+self.CurrentVel*self.timeHeadway
+            print(DesHw)
+
             if not rospy.is_shutdown():
                         log_Str = ('Published target Controller Output ( Pure ACC):',self.acc_class)
                         # rospy.loginfo(log_Str)
@@ -79,6 +91,7 @@ class controller():
             #             rospy.loginfo(log_Str)
             #             acc_pub.publish(acc_class)
     # trackSelector Identifies the relevant track for ACC
+    
     def trackSelector(self,data2):
         from dbw_mkz_msgs.msg import SteeringReport
         from delphi_esr_msgs.msg import EsrStatus4
@@ -100,8 +113,8 @@ class controller():
             rospy.logwarn('ACC Target Changed')
 
     # Callback 3 is for obtaining ego vehicle velocity
+    
     def velFun(self,data3):
-
         self.CurrentVel=data3.speed
         # print (CurrentVel)
 
@@ -115,23 +128,24 @@ class controller():
         CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
         LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
         LocalImage=cv2.putText(LocalImage,str('T'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-
-        # For Options:
+        # For Option1:
         temp2=np.divide(self.CamZoffset,self.RadarTargetOpt1Data.track_range+self.CamXOffset)
         RadarAnglesV=np.abs(np.degrees(np.arctan(temp2.astype(float)))) #will always be negative, so correct for it
         CameraX=np.dot(self.RadarTargetOpt1Data.track_angle,(LocalImage.shape[1]/190)) + LocalImage.shape[1]/2 
         CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
         LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
         LocalImage=cv2.putText(LocalImage,str('O1'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-        
+         # For Option2:
         temp2=np.divide(self.CamZoffset,self.RadarTargetOpt2Data.track_range+self.CamXOffset)
         RadarAnglesV=np.abs(np.degrees(np.arctan(temp2.astype(float)))) #will always be negative, so correct for it
         CameraX=np.dot(self.RadarTargetOpt2Data.track_angle,(LocalImage.shape[1]/190)) + LocalImage.shape[1]/2 
         CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
         LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
         LocalImage=cv2.putText(LocalImage,str('O2'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-
         self.image_pub.publish(self.bridge.cv2_to_imgmsg(LocalImage, "bgr8"))
 
 if __name__=='__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Shutting down")

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>ll_controller</name>
+  <name>acc</name>
   <version>0.0.0</version>
-  <description>The ll_controller package</description>
+  <description>The acc code package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
