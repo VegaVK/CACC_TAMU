@@ -15,10 +15,10 @@ def talker():
     steer_class=dbw_mkz_msgs.msg.SteeringCmd()
     steer_pub = rospy.Publisher('vehicle/steering_cmd',dbw_mkz_msgs.msg.SteeringCmd, queue_size=2)
     inputval=float(input("Please enter the desired steering angle in DEGREES: "))
-    desSteerAngleRad=inputval*(180/math.pi) # Need to convert from deg to radians for Steering Cmd
+    desSteerAngleRad=inputval*(math.pi/180) # Need to convert from deg to radians for Steering Cmd
     steer_class.enable=True
     steer_class.steering_wheel_angle_cmd=desSteerAngleRad
-    steer_class.steering_wheel_angle_velocity=1 # Hard coded here.
+    steer_class.steering_wheel_angle_velocity=2 # Hard coded here.
     while not rospy.is_shutdown():
         rospy.loginfo_once('Published Steering Command')
         steer_pub.publish(steer_class)

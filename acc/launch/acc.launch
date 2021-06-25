@@ -9,7 +9,7 @@
 <node name="Panorama" pkg="flir_adk_multi" type="StitchPano.py" output="screen"></node> 
 
 <!-- low level controller script autostart: -->
-<node name="ll_cont" pkg="acc" type="ll_controller.py" output="screen" cwd ="node"></node> 
+<!-- <node name="ll_cont" pkg="acc" type="ll_controller.py" output="screen" cwd ="node"></node> -->
 
 
 </launch>

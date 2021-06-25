@@ -27,6 +27,8 @@ class llContClass():
     def __init__(self):
         self.CurrentVel=0.0 # in m/s
         self.CurrentAccel=0.0
+        self.PrevBrkCmd=0.0 # For smoothening the input
+        self.PrevThrCmd=0.0 # Not used right now
         self.Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
         self.CmdArrThr=np.array(self.Mapdata['X_Lup']).T
         self.VelGridThr=np.array(self.Mapdata['Y_Lup']).T
@@ -128,7 +130,10 @@ class llContClass():
                 #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
                 self.brake_class.pedal_cmd_type= 4# Mode1, Unitless, Range 0.15 to 0.5
                 #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
-                self.brake_class.pedal_cmd=brake_out # For Mode 1
+                # smoothen the brake command:
+                brake_out_smooth=(self.PrevBrkCmd+brake_out)/2
+                self.brake_class.pedal_cmd=brake_out_smooth # For Mode 1
+                self.PrevBrkCmd=brake_out
         else:
                 self.brake_class.enable=False # Disable Brake, enable throttle
                 self.brake_class.pedal_cmd=0

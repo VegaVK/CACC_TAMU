@@ -49,15 +49,15 @@ class velTrackClass():
     def __init__(self,desVelInput):
         #initialize
         self.Ki=0.3
-        self.Kp=0.3
-        self.Kv=0.3
+        self.Kp=0.4
+        self.Kv=0.1
         self.PrevErrorVel=0.0
         self.CurrentAccel=0.0
         self.CurrentVel=0.0
         self.DesiredVel=desVelInput
         self.ClockStore=self.time.time()
         self.targetAccelOut=0.0
-        self.BrakeDecelGain=1.0 # Additional gain for braking deceleration, >1 for harder decel
+        self.BrakeDecelGain=0.9 # Additional gain for braking deceleration, >1 for harder decel
         
 
     def updateDesVel(self,updatedVal):

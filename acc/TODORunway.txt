@@ -1,5 +1,9 @@
-1. Test Launch File
-2. Test ll_controller (adjust velTrackerGains (Ki,Kp,Kv) if req as well as BrakeDecelGain)
-3. Test VelTracker
-3. get fixed steering/fixed vel maps for steering model
-4. test acc_controller (adjust Kp,Kv gains and BrakeDecelGain)
+1. Test Launch File - done
+2. Test ll_controller (adjust velTrackerGains (Ki,Kp,Kv) if req as - well as BrakeDecelGain) - braking is not smooth
+3. Test VelTracker - done, takes time to get to steadystate
+3. get fixed steering/fixed vel maps for steering model - done
+4. test acc_controller (adjust Kp,Kv gains and BrakeDecelGain) XXX - DELPHI MSGS ISSUE!!!!
+
+
+## Observations:
+Doesnt come to complete stop near zero (maybe need Sliding mode?)

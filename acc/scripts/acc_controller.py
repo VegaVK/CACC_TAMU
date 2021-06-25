@@ -45,7 +45,7 @@ class ACCcontroller():
         rospy.Subscriber('vehicle/steering_report', SteeringReport, self.velFun)
         rospy.Subscriber('parsed_tx/radarstatus4', EsrStatus4, self.trackSelector)
         rospy.Subscriber('parsed_tx/radartrack', delphi_esr_msgs.msg.EsrTrack,  self.acc_calc)
-        rospy.Subscriber('Thermal_Panorama', Image,  self.plotter)
+        # rospy.Subscriber('Thermal_Panorama', Image,  self.plotter)
             # rospy.loginfo(rospy.get_caller_id()+'x_acc received')
     # acc_calc uses the identified track and current velocity to calculate controller effort(accel) and publishes it
     
