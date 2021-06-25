@@ -18,4 +18,3 @@ if __name__=='__main__':
         talker()
     except rospy.ROSInterruptException:
         print("Shutting down")
-# TODO: Call ll_controller class here
