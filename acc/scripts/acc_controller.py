@@ -68,9 +68,9 @@ class ACCcontroller():
             
             targetAccel=-self.Kp*(-self.meas_range+self.L+self.CurrentVel*self.timeHeadway)-self.Kv*(-self.meas_range_rate)
             if targetAccel<0:
-                self.acc_class.data=targetAccel*self.BrakeDecelGain
+                self.acc_class=targetAccel*self.BrakeDecelGain
             else:
-                self.acc_calc.data=targetAccel
+                self.acc_calc=targetAccel
             print('Meas Dist:')
             MeasHw=self.meas_range
             print(MeasHw)
