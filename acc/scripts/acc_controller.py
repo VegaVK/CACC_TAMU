@@ -83,7 +83,7 @@ class ACCcontroller():
                         # rospy.loginfo(log_Str)
                         self.acc_pub.publish(self.acc_class)
         elif self.CipvID==0:
-            self.acc_class.data=0 # No controller output if not found
+            self.acc_class=0 # No controller output if not found
             rospy.logwarn('No Target, maintain zero acceleration')
             # rospy.logwarn('No ACC Target found')
             # if not rospy.is_shutdown():
