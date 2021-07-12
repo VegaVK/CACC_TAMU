@@ -49,8 +49,8 @@ class velTrackClass():
     def __init__(self,desVelInput):
         #initialize
         self.Ki=0.3
-        self.Kp=0.4
-        self.Kv=0.1
+        self.Kp=0.3
+        self.Kv=0
         self.PrevErrorVel=0.0
         self.CurrentAccel=0.0
         self.CurrentVel=0.0

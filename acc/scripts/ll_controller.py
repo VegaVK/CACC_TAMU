@@ -29,6 +29,7 @@ class llContClass():
         self.CurrentAccel=0.0
         self.PrevBrkCmd=0.0 # For smoothening the input
         self.PrevThrCmd=0.0 # Not used right now
+        self.completeStop=0 # Flag used to get out of complete stop
         self.Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
         self.CmdArrThr=np.array(self.Mapdata['X_Lup']).T
         self.VelGridThr=np.array(self.Mapdata['Y_Lup']).T
@@ -67,7 +68,7 @@ class llContClass():
         # Calculate Throttle Command first:
         ZnewEng=self.interpFun2DEng(self.CmdArrThr[0],self.CurrentVel) # Bunch of Accelerations
         ZnewBrk=self.interpFun2DBrk(self.CmdArrBrk[0],self.CurrentVel) # Bunch of Accelerations
-        if (targetAccel<0):
+        if (targetAccel<=0):
             throttle_out=0.0
             if (targetAccel<=-4):
                 brake_out=3412
@@ -93,7 +94,8 @@ class llContClass():
 
                         
                 
-        elif(targetAccel>=0):
+        elif(targetAccel>0):
+            self.completeStop=0 # only set flag to zero if desired accel is greater than 0
             brake_out=0
             if(targetAccel>3):
                 throttle_out=0.8
@@ -122,31 +124,34 @@ class llContClass():
 
                         else:
                             continue
-        if targetAccel<0:
-                self.throttle_class.enable=False 
-                self.throttle_class.pedal_cmd=0
-                self.throttle_class.pedal_cmd_type=0
-                self.brake_class.enable=True# Enable Brake, disable throttle
-                #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
-                self.brake_class.pedal_cmd_type= 4# Mode1, Unitless, Range 0.15 to 0.5
-                #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
-                # smoothen the brake command:
-                brake_out_smooth=(self.PrevBrkCmd+brake_out)/2
-                self.brake_class.pedal_cmd=brake_out_smooth # For Mode 1
-                self.PrevBrkCmd=brake_out
+        if targetAccel<=0:
+            if self.CurrentVel<1 or self.completeStop==1: #1 m/s, ~ 2MPH and aarget accel is negative 
+                brake_out=275 # hardcoded value
+                self.completeStop=1 # set flag
+            self.throttle_class.enable=False 
+            self.throttle_class.pedal_cmd=0
+            self.throttle_class.pedal_cmd_type=0
+            self.brake_class.enable=True# Enable Brake, disable throttle
+            #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
+            self.brake_class.pedal_cmd_type= 4# Mode1, Unitless, Range 0.15 to 0.5
+            #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
+            # smoothen the brake command:
+            brake_out_smooth=(self.PrevBrkCmd+brake_out)/2
+            self.brake_class.pedal_cmd=brake_out_smooth # For Mode 1
+            self.PrevBrkCmd=brake_out
         else:
-                self.brake_class.enable=False # Disable Brake, enable throttle
-                self.brake_class.pedal_cmd=0
-                self.brake_class.pedal_cmd_type=0
-                self.throttle_class.enable=True
-                self.throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
-                self.throttle_class.pedal_cmd=throttle_out# Originally stable, remove after enginemap works
-                #throttle_class.pedal_cmd=0.6*throttle_out
+            self.brake_class.enable=False # Disable Brake, enable throttle
+            self.brake_class.pedal_cmd=0
+            self.brake_class.pedal_cmd_type=0
+            self.throttle_class.enable=True
+            self.throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
+            self.throttle_class.pedal_cmd=throttle_out# Originally stable, remove after enginemap works
+            #throttle_class.pedal_cmd=0.6*throttle_out
         if not rospy.is_shutdown():
-                log_Str = ('\n Brake: ', self.brake_class.pedal_cmd, ' \n Throttle:', self.throttle_class.pedal_cmd)
-                rospy.loginfo(log_Str)
-                self.brake_pub.publish(self.brake_class)
-                self.throttle_pub.publish(self.throttle_class)
+            log_Str = ('\n Brake: ', self.brake_class.pedal_cmd, ' \n Throttle:', self.throttle_class.pedal_cmd)
+            rospy.loginfo(log_Str)
+            self.brake_pub.publish(self.brake_class)
+            self.throttle_pub.publish(self.throttle_class)
 
     def velfun(self,data):
         self.CurrentVel=data.twist.linear.x

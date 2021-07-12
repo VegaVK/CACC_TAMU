@@ -28,10 +28,11 @@ class ACCcontroller():
         self.timeHeadway=0.5# In seconds
         self.L=15# in meters
         self.Kp=0.1
-        self.Kv=0.1
-        self.BrakeDecelGain=1.0 # Additional gain for braking deceleration, >1 for harder decel
+        self.Kv=0.2
+        self.BrakeDecelGain=3 # Additional gain for braking deceleration, >1 for harder decel # TODO, this contradicts with what is in ll_controller already!!
         self.CipvID=0
         self.PrevTrackID=self.CipvID
+
         self.CamXOffset=2.36#=93 inches, measured b/w cam and Rdr, in x direction
         self.CamZoffset=1 # Roughly 40 inches
         self.font=cv2.FONT_HERSHEY_SIMPLEX 
@@ -54,6 +55,7 @@ class ACCcontroller():
             self.RadarTargetOpt1Data=data
         elif data.track_id==self.TargetOpt2:
             self.RadarTargetOpt2Data=data
+
         
         if  data.track_id==self.CipvID:
             self.RadarTargetData=data
@@ -66,17 +68,29 @@ class ACCcontroller():
             # print(self.meas_range_rate)
             
             
-            targetAccel=-self.Kp*(-self.meas_range+self.L+self.CurrentVel*self.timeHeadway)-self.Kv*(-self.meas_range_rate)
+            targetAccel=self.Kp*(self.meas_range-self.L-self.CurrentVel*self.timeHeadway)+self.Kv*(self.meas_range_rate)
             if targetAccel<0:
                 self.acc_class=targetAccel*self.BrakeDecelGain
+            elif targetAccel>=0.8:
+                self.acc_class=0.8# Hard Capped to 0.8
             else:
-                self.acc_calc=targetAccel
+                self.acc_class=targetAccel
+            print("TargetAccel:")
+            # print(self.acc_class)
+            print(targetAccel)
             print('Meas Dist:')
             MeasHw=self.meas_range
             print(MeasHw)
             print('Des Dist:')
             DesHw=self.L+self.CurrentVel*self.timeHeadway
             print(DesHw)
+            print("RangeRateMeas:")
+            print(self.meas_range_rate)
+            # print("Opt1 Meas Range:")
+            # print(self.RadarTargetOpt1Data.track_range)
+        
+            # print("Opt2 Meas Range:")
+            # print(self.RadarTargetOpt2Data.track_range)
 
             if not rospy.is_shutdown():
                         log_Str = ('Published target Controller Output ( Pure ACC):',self.acc_class)
@@ -96,9 +110,9 @@ class ACCcontroller():
         from dbw_mkz_msgs.msg import SteeringReport
         from delphi_esr_msgs.msg import EsrStatus4
         self.PrevTrackID=self.CipvID
-        self.TargetOpt1=data2.path_id_acc
-        self.TargetOpt2=data2.path_id_acc_stat
-        
+        self.TargetOpt1=data2.path_id_acc-1
+        self.TargetOpt2=data2.path_id_acc_stat-1
+
         # print(data2.path_id_acc)
         if (not (data2.path_id_acc==0) or not(data2.path_id_acc_stat==0)): # pick one or the other
             
