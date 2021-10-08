@@ -1,11 +1,9 @@
 <?xml version="1.0"?>
 <launch>
+ 
 
-<!--	<include file="$(find dbw_mkz_can)/launch/dbw.launch"/>
-	<include file="$(find delphi_esr)/launch/delphi_esr_car.launch"/>
-  	<include file="$(find xsens_mti_driver)/launch/xsens_mti_node.launch"/> -->
-<node name="timeServer" pkg="v_cacc" type="time_server.py" output="log" cwd ="node"></node> 
 <node name="cacc1_cont" pkg="v_cacc" type="cacc1_controller.py" output="screen" cwd ="node"></node>
+<node name="timeServer" pkg="v_cacc" type="time_server.py" output="log" cwd ="node"></node> 
 
 <!-- <node name="Panorama" pkg="flir_adk_multi" type="StitchPano.py" output="screen"></node> -->
 

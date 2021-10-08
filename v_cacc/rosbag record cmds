@@ -1,8 +1,8 @@
 ***** LV Bag file: ************* (no code running)
-rosbag record -a -O LVBag.bag -x "/time_topic/(.*)
+rosbag record -a -O LVBag1.bag -x "/time_topic/(.*)"
 
 
 *****One Vehicle lookup: (FV[x]_CACC[y].bag)  ***************************
 roslaunch v_cacc v_acc1.launch
-rosbag record -a -O FV1_CACC1.bag -x "/time_topic/(.*)
+rosbag record -a -O Bag1FV1_CACC1.bag -x "/time_topic/(.*)"
 
