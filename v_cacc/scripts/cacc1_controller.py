@@ -13,6 +13,7 @@ from dbw_mkz_msgs.msg import SteeringReport
 from delphi_esr_msgs.msg import EsrStatus4
 import pymap3d as pm
 import numpy as np
+import random
 
 
 def main():
@@ -32,10 +33,17 @@ class CACCcontroller():
         self.CurrentVel=0 # Start condition
         self.timeHeadway=0.45# In seconds
         self.L=1 #in meters
-        self.Kp=0.1
-        self.Kv=0.2
-        self.Ka=0.2
+        self.Kp=0.2
+        self.Kv=0.3
+        self.Ka=0.6
         self.BrakeDecelGain=2 # Unused
+        #Gilbert Model Parameters:
+        self.BadLR=95
+        self.GoodToBad=30
+        self.BadToGood=30
+        self.CurrentGilbertState=1 # 1= Good State; 0 = Bad State
+        self.NextGilbertState=1
+        self.PLFactor=1 
         ## **** GPS ORIGIN ****
         self.lat0 = 30.632913
         self.lon0 = -96.481894 # deg
@@ -88,6 +96,30 @@ class CACCcontroller():
         self.CurrentPos=pm.geodetic2enu(data.latitude,data.longitude,data.altitude, self.lat0, self.lon0, self.h0)
         self.acc_calc()
 
+    def gilbert(self):
+        # PErr=self.GoodToBad*self.BadLR/(self.BadToGood+self.GoodToBad)
+        R1=random.random()
+        R2=random.random()
+        R3=random.random()
+        if self.CurrentGilbertState==1:
+            self.PLFactor=1
+        else:
+            if R1<=self.BadLR/100:
+                self.PLFactor=0
+            else:
+                self.PLFactor=1
+        #Pick transition of state:
+        if self.CurrentGilbertState==1:
+            if R2<=self.GoodToBad/100:
+                self.NextGilbertState=0
+            else:
+                self.NextGilbertState=1
+        else:
+            if R3<=self.BadToGood/100:
+                self.NextGilbertState=1
+            else:
+                self.NextGilbertState=0
+        self.CurrentGilbertState=self.NextGilbertState
 
     def timeStore(self,data):
         # print('timestore')
@@ -107,9 +139,9 @@ class CACCcontroller():
         delV=(self.bLVvelData[self.timeIndexSel(self.bLVvelData),1]-self.CurrentVel)
         delX=(self.Direction*(self.bLVPosData[self.timeIndexSel(self.bLVPosData),2]-self.CurrentPos[1])-self.L-self.CurrentVel*self.timeHeadway) # TODO: not sure if currentPos is correct in enu (maybe -ve)
         if self.PL_Enable:
-             self.acc_class=self.Gamma1*self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]+self.Kv*delV+self.Kp*delX
+             self.acc_class=self.PLFactor*self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]+self.Kv*delV+self.Kp*delX
         else:
-            self.acc_class=self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]-self.Kv*delV-self.Kp*delX
+            self.acc_class=self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]+self.Kv*delV+self.Kp*delX
         if not rospy.is_shutdown():
                     log_Str = ('Published target Controller Output ( CACC_1):',self.acc_class)
                     rospy.loginfo(log_Str)
@@ -119,6 +151,7 @@ class CACCcontroller():
     def accelfun(self,data):
         # print('accelfun)')
         self.CurrentAccel=data.accel_over_ground
+        self.gilbert() # Run gilbert model to calculate PLFactor
     
     def velFun(self,data3):
         # print('velfun')
