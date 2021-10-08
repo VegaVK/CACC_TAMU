@@ -3,12 +3,12 @@
 import rospy
 import pymap3d as pm
 import numpy as np
-
+from bagpy import bagreader
 import matplotlib.pyplot as plt
 
 
 def main():
-    rospy.init_node('error_plotter', anonymous=True)
+    
     accInst=SpacingErrorPlot()
     rospy.spin()
 
@@ -44,13 +44,15 @@ class SpacingErrorPlot ():
         self.Pos=[]
         self.Vel=[]
         self.Accel=[]
-        for vIdx in range(self.TotalFollowVehs):
+        for vIdx in range(self.TotalVehs):
             if vIdx==0:
                 # CarBag=bagreader('/home/mkz/mkzbag/2021Oct6/LVBag1.bag')
-                CarBag=bagreader('/home/vamsi/Downloads/ATemp/2021Oct6/LVBag1.bag')
+                # CarBag=bagreader('/home/vamsi/Downloads/ATemp/2021Oct6/LVBag1.bag')
+                CarBag=bagreader('V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\LVBag1.bag')
             else:
                 # prevVehPath='/home/mkz/mkzbag/2021Oct6//FV'+str(vIdx)+'_CACC1.bag'
-                prevVehPath='/home/vamsi/Downloads/ATemp/2021Oct6/FV'+str(vIdx)+'_CACC1.bag'
+                # prevVehPath='/home/vamsi/Downloads/ATemp/2021Oct6/FV'+str(vIdx)+'_CACC1.bag'
+                prevVehPath='V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\FV'+str(vIdx)+'_CACC1.bag'
                 CarBag=bagreader(prevVehPath)
             Bagfile = CarBag.message_by_topic(topic='/piksi/navsatfix_best_fix')
             TempPos=np.loadtxt(open(Bagfile, "rb"), delimiter=",", skiprows=1, usecols = (0,7,8,9)) # [Time (s). Lat, Lon, Alt]
@@ -77,11 +79,11 @@ class SpacingErrorPlot ():
         self.plotter()
 
     def plotter(self,data):
-        for vIdx in range(1,self.TotalFollowVehs):
+        for vIdx in range(1,self.TotalVehs):
             vecLength=min(self.Pos[vIdx].shape[0], self.Pos[vIdx-1].shape[0])
             delX=np.zeros((vecLength,1))
             for idx in range(vecLength):
-                delX[idx]=(self.Direction*(self.Pos[vIdx-1][idx,2]-self.Pos[vIdx][idx,2])-self.L-self.Vel[vIdx][self.timeIndexSel(self.Vel[vIdx],self.Pos[vIdx][0,0])*self.timeHeadway)
+                delX[idx]=(self.Direction*(self.Pos[vIdx-1][idx,2]-self.Pos[vIdx][idx,2])-self.L-self.timeIndexSel(self.Vel[vIdx], self.Pos[vIdx][idx,0])*self.timeHeadway)
         
             plt.plot(self.Pos[vIdx][:,0], delX)
         plt.ylabel('Spacing Error')
@@ -91,7 +93,7 @@ class SpacingErrorPlot ():
     def timeIndexSel(self,DataMat,targetTime):
         for jdx in range(DataMat.shape[0]):
             if (DataMat[jdx,0]-targetTime>=0) or (jdx==DataMat.shape[0]-1):
-                return jdx
+                return DataMat[jdx,1]
                 break
             else:
                 continue
