@@ -35,7 +35,7 @@ class CACCcontroller():
         self.Kp=0.1
         self.Kv=0.2
         self.Ka=0.2
-        self.BrakeDecelGain=3 # Additional gain for braking deceleration, >1 for harder decel # TODO check if necessary
+        self.BrakeDecelGain=2 # Unused
         ## **** GPS ORIGIN ****
         self.lat0 = 30.632913
         self.lon0 = -96.481894 # deg
@@ -107,9 +107,9 @@ class CACCcontroller():
         delV=(self.bLVvelData[self.timeIndexSel(self.bLVvelData),1]-self.CurrentVel)
         delX=(self.Direction*(self.bLVPosData[self.timeIndexSel(self.bLVPosData),2]-self.CurrentPos[1])-self.L-self.CurrentVel*self.timeHeadway) # TODO: not sure if currentPos is correct in enu (maybe -ve)
         if self.PL_Enable:
-             self.acc_class=self.Gamma1*self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]+self.Kv*delV+self.Kv*delX
+             self.acc_class=self.Gamma1*self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]+self.Kv*delV+self.Kp*delX
         else:
-            self.acc_class=self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]-self.Kv*delV-self.Kv*delX
+            self.acc_class=self.Ka*self.bLVAccelData[self.timeIndexSel(self.bLVAccelData),1]-self.Kv*delV-self.Kp*delX
         if not rospy.is_shutdown():
                     log_Str = ('Published target Controller Output ( CACC_1):',self.acc_class)
                     rospy.loginfo(log_Str)

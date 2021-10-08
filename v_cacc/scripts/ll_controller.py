@@ -76,7 +76,7 @@ def callback(data):
         # print(gear_class)
         r_wh=0.2413 # Radius of Wheel
         m=1800 # Approx weight of car
-        brakeGain=6
+        brakeGain=6 # Unused
         # Calculate Throttle Command first:
         
         CURRENTVEL=Vehicle.Vel.speed
@@ -101,8 +101,8 @@ def callback(data):
                 throttle_class.pedal_cmd=0
                 throttle_class.pedal_cmd_type=0
                 brake_class.enable=True# Enable Brake, disable throttle
-                #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
-                brake_class.pedal_cmd_type= 1# Mode1, Unitless, Range 0.15 to 0.5
+                #brake_class.pedal_cmd_type= 2# Mode 2, Percent of maximum torque, from 0 to 1
+                brake_class.pedal_cmd_type= 1# Mode 1, Unitless, Range 0.15 to 0.5
                 #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
                 brake_class.pedal_cmd=0.3*abs(data.data)+0.15 # For Mode 1
         else:
