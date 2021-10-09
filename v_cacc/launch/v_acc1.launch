@@ -4,6 +4,7 @@
 
 <node name="cacc1_cont" pkg="v_cacc" type="cacc1_controller.py" output="screen" cwd ="node"></node>
 <node name="timeServer" pkg="v_cacc" type="time_server.py" output="log" cwd ="node"></node> 
+<node name="record"     pkg="rosbag"    type="record"   args="-a  -x /time_topic -O /home/mkz/mkzbag/2021Oct8/Bag2FV6_CACC1.bag "></node>
 
 <!-- <node name="Panorama" pkg="flir_adk_multi" type="StitchPano.py" output="screen"></node> -->
 

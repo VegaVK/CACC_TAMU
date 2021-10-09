@@ -3,160 +3,160 @@
 #
 # Copyright (c) 2008, Willow Garage, Inc.
 # All rights reserved.
-## Standard ACC implementation, with no use of acceleration from radar, or otherwise
-## Also creates image for radar target in /Thermal_Panorama if available
+
 import rospy
+import dbw_mkz_msgs.msg
+from geometry_msgs.msg import TwistStamped
+from rospy.core import logwarn
 import std_msgs
-import dbw_mkz_msgs
-import delphi_esr_msgs
-from sensor_msgs.msg import Image
-from dbw_mkz_msgs.msg import SteeringReport
-from delphi_esr_msgs.msg import EsrStatus4
 import numpy as np
-import cv2
-from cv_bridge import CvBridge, CvBridgeError
+import time
+import scipy.io as sio
+from scipy import interpolate
+from velTracker import velTrackClass
+
+# TODO: if accel recieved is zero, maintain current velocity at time of command
+# TODO: remove self.variables, switch to class based model
 
 def main():
-    rospy.init_node('acc_controller', anonymous=True)
-    accInst=ACCcontroller()
+    
+    ll_contr_inst=llContClass()
     rospy.spin()
-
-
-class ACCcontroller():
+   
+class llContClass():
     def __init__(self):
-        self.CurrentVel=0 # Start condition
-        self.timeHeadway=0.5# In seconds
-        self.L=15# in meters
-        self.Kp=0.1
-        self.Kv=0.2
-        self.BrakeDecelGain=3 # Additional gain for braking deceleration, >1 for harder decel # TODO, this contradicts with what is in ll_controller already!!
-        self.CipvID=0
-        self.PrevTrackID=self.CipvID
+        self.CurrentVel=0.0 # in m/s
+        self.CurrentAccel=0.0
+        self.PrevBrkCmd=0.0 # For smoothening the input
+        self.PrevThrCmd=0.0 # Not used right now
+        self.completeStop=0 # Flag used to get out of complete stop
+        self.Mapdata=sio.loadmat('LookupPy_EngineMKZ.mat')
+        self.CmdArrThr=np.array(self.Mapdata['X_Lup']).T
+        self.VelGridThr=np.array(self.Mapdata['Y_Lup']).T
+        self.z1=self.Mapdata['Z_Lup']
+        self.Mapdata=sio.loadmat('LookupPy_BrakeMKZ.mat')
+        self.CmdArrBrk=np.array(self.Mapdata['X_LupBr']).T
+        self.VelGridBrk=np.array(self.Mapdata['Y_LupBr']).T
+        self.z2=self.Mapdata['Z_LupBr']
+        self.interpFun2DEng=interpolate.interp2d(self.CmdArrThr,self.VelGridThr,self.z1)
+        self.interpFun2DBrk=interpolate.interp2d(self.CmdArrBrk,self.VelGridBrk,self.z2)
+        self.throttle_class=dbw_mkz_msgs.msg.ThrottleCmd()
+        self.brake_class=dbw_mkz_msgs.msg.BrakeCmd()
+        rospy.init_node('ll_controller', anonymous=True)
+        self.velTrackerInst=velTrackClass(0.0)
+        self.brake_pub = rospy.Publisher('vehicle/brake_cmd',dbw_mkz_msgs.msg.BrakeCmd, queue_size=2)
+        self.throttle_pub=rospy.Publisher('vehicle/throttle_cmd',dbw_mkz_msgs.msg.ThrottleCmd,queue_size=2)
+        # Subscribe to external ACC/CACC controller
+        # rospy.Subscriber('vehicle/steering_report',dbw_mkz_msgs.msg.SteeringReport,velfun)
+        rospy.Subscriber('/vehicle/twist', TwistStamped,self.velfun)
+        rospy.Subscriber('/x_acc/control_input', std_msgs.msg.Float32, self.pedalPublisher)
+        rospy.Subscriber('/vehicle/brake_info_report', dbw_mkz_msgs.msg.BrakeInfoReport,self.accelfun)
+        rospy.loginfo_once(rospy.get_caller_id()+'ll_controller Started')
 
-        self.CamXOffset=2.36#=93 inches, measured b/w cam and Rdr, in x direction
-        self.CamZoffset=1 # Roughly 40 inches
-        self.font=cv2.FONT_HERSHEY_SIMPLEX 
-        self.bridge=CvBridge()
-        self.acc_class=std_msgs.msg.Float32()
-        self.RadarTargetData=delphi_esr_msgs.msg.EsrTrack()
-        self.RadarTargetOpt1Data=delphi_esr_msgs.msg.EsrTrack()
-        self.RadarTargetOpt2Data=delphi_esr_msgs.msg.EsrTrack()
-        self.acc_pub = rospy.Publisher('x_acc/control_input',std_msgs.msg.Float32,queue_size=2)
-        self.image_pub=rospy.Publisher("accImage",Image, queue_size=2) 
-        rospy.Subscriber('vehicle/steering_report', SteeringReport, self.velFun)
-        rospy.Subscriber('parsed_tx/radarstatus4', EsrStatus4, self.trackSelector)
-        rospy.Subscriber('parsed_tx/radartrack', delphi_esr_msgs.msg.EsrTrack,  self.acc_calc)
-        # rospy.Subscriber('Thermal_Panorama', Image,  self.plotter)
-            # rospy.loginfo(rospy.get_caller_id()+'x_acc received')
-    # acc_calc uses the identified track and current velocity to calculate controller effort(accel) and publishes it
-    
-    def acc_calc(self,data):
-        if  data.track_id==self.TargetOpt1:
-            self.RadarTargetOpt1Data=data
-        elif data.track_id==self.TargetOpt2:
-            self.RadarTargetOpt2Data=data
 
+    def pedalPublisher(self,data):
         
-        if  data.track_id==self.CipvID:
-            self.RadarTargetData=data
-            # print(CipvID)
-            self.meas_range=data.track_range # x_{i-1} -x_i
-            # print('Range:')
-            # print(self.meas_range)
-            self.meas_range_rate=data.track_range_rate
-            # print('RangeRate:')
-            # print(self.meas_range_rate)
-            
-            
-            targetAccel=self.Kp*(self.meas_range-self.L-self.CurrentVel*self.timeHeadway)+self.Kv*(self.meas_range_rate)
-            if targetAccel<0:
-                self.acc_class=targetAccel*self.BrakeDecelGain
-            elif targetAccel>=0.8:
-                self.acc_class=0.8# Hard Capped to 0.8
-            else:
-                self.acc_class=targetAccel
-            print("TargetAccel:")
-            # print(self.acc_class)
-            print(targetAccel)
-            print('Meas Dist:')
-            MeasHw=self.meas_range
-            print(MeasHw)
-            print('Des Dist:')
-            DesHw=self.L+self.CurrentVel*self.timeHeadway
-            print(DesHw)
-            print("RangeRateMeas:")
-            print(self.meas_range_rate)
-            # print("Opt1 Meas Range:")
-            # print(self.RadarTargetOpt1Data.track_range)
-        
-            # print("Opt2 Meas Range:")
-            # print(self.RadarTargetOpt2Data.track_range)
-
-            if not rospy.is_shutdown():
-                        log_Str = ('Published target Controller Output ( Pure ACC):',self.acc_class)
-                        # rospy.loginfo(log_Str)
-                        self.acc_pub.publish(self.acc_class)
-        elif self.CipvID==0:
-            self.acc_class=0 # No controller output if not found
-            rospy.logwarn('No Target, maintain zero acceleration')
-            # rospy.logwarn('No ACC Target found')
-            # if not rospy.is_shutdown():
-            #             log_Str = ('Published target Controller Output ( Pure ACC):',acc_class)
-            #             rospy.loginfo(log_Str)
-            #             acc_pub.publish(acc_class)
-    # trackSelector Identifies the relevant track for ACC
-    
-    def trackSelector(self,data2):
-        from dbw_mkz_msgs.msg import SteeringReport
-        from delphi_esr_msgs.msg import EsrStatus4
-        self.PrevTrackID=self.CipvID
-        self.TargetOpt1=data2.path_id_acc-1
-        self.TargetOpt2=data2.path_id_acc_stat-1
-
-        # print(data2.path_id_acc)
-        if (not (data2.path_id_acc==0) or not(data2.path_id_acc_stat==0)): # pick one or the other
-            
-            if data2.path_id_acc==0:
-                self.CipvID=data2.path_id_acc_stat-1
-            else:
-                self.CipvID=data2.path_id_acc-1
+        # r_wh=0.2413 # Radius of Wheel
+        # m=1800 # Approx weight of car
+        if data.data==0.0: #command from ACC is zero, so maintain current velocity
+            self.velTrackerInst.updateDesVel(self.CurrentVel) # supplies current velocity
+            self.velTrackerInst.updateCurrAccel(self.CurrentAccel)
+            self.velTrackerInst.updateCurrVel(self.CurrentVel)
+            targetAccel=self.velTrackerInst.getTargetAccelForll()
         else:
-            self.CipvID=0 # Or else, No track found
-        
-        if self.PrevTrackID!=self.CipvID:
-            rospy.logwarn('ACC Target Changed')
+            targetAccel=data.data # From ACC Controller
+        # Calculate Throttle Command first:
+        ZnewEng=self.interpFun2DEng(self.CmdArrThr[0],self.CurrentVel) # Bunch of Accelerations
+        ZnewBrk=self.interpFun2DBrk(self.CmdArrBrk[0],self.CurrentVel) # Bunch of Accelerations
+        if (targetAccel<=0):
+            throttle_out=0.0
+            if (targetAccel<=-4):
+                brake_out=3412
+            else: #Quite convoluted, see if there's a cleaner way later
+                for idx in range(0,(ZnewBrk.shape[0]-1)):
+                    # print(idx)
+                    # print(ZnewBrk.shape[0]-1)
+                    if idx==0:
+                        lower=0 # TODO: First element, force it to be zero (possibly edit this in the map directly in future)
+                    else:
+                        lower=ZnewBrk[idx]
+                    upper=ZnewBrk[idx+1]
+                    if (targetAccel<=lower) and (targetAccel>upper): #Reverse, since negative values for break
+                        # print('satisfied')
+                        brake_out=(100)*(targetAccel-lower)/(upper-lower)+self.CmdArrBrk[0][idx]     
+                        break
+                    else:
+                        # idx=idx+1
+                        if idx >=(ZnewBrk.shape[0]-2):
+                            brake_out=3400 # TODO: Double check this, was modified on Jun17, was throttle_out=0.8 earlier.
+                        else:
+                            continue
 
-    # Callback 3 is for obtaining ego vehicle velocity
-    
-    def velFun(self,data3):
-        self.CurrentVel=data3.speed
-        # print (CurrentVel)
+                        
+                
+        elif(targetAccel>0):
+            self.completeStop=0 # only set flag to zero if desired accel is greater than 0
+            brake_out=0
+            if(targetAccel>3):
+                throttle_out=0.8
+            else: #Quite convoluted, see if there's a cleaner way later
+                # print(ZnewEng)
+                # print(ZnewEng.shape[0]-1)
+                for idx in range(0,(ZnewEng.shape[0]-1)):
+                    # print('idx:')
+                    # print(idx)
+                    if idx==0:
+                        lower=0 # TODO: First element, force it to be zero (possibly edit this in the map directly in future)
+                    else:
+                        lower=ZnewEng[idx]
+                    
+                    
+                    upper=ZnewEng[idx+1]
+                    # print(upper)
+                    if  (targetAccel<upper):
+                        throttle_out=self.CmdArrThr[0][idx+1]-(0.05)*(upper-targetAccel)/(upper-lower)   
+                        break
 
-    def plotter(self,data):
-        # If thermal panorama is available, uses the current radar track and plots it
-        LocalImage=self.bridge.imgmsg_to_cv2(data, "rgb8")
-        # For Target:
-        temp2=np.divide(self.CamZoffset,self.RadarTargetData.track_range+self.CamXOffset)
-        RadarAnglesV=np.abs(np.degrees(np.arctan(temp2.astype(float)))) #will always be negative, so correct for it
-        CameraX=np.dot(self.RadarTargetData.track_angle,(LocalImage.shape[1]/190)) + LocalImage.shape[1]/2 
-        CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
-        LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
-        LocalImage=cv2.putText(LocalImage,str('T'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-        # For Option1:
-        temp2=np.divide(self.CamZoffset,self.RadarTargetOpt1Data.track_range+self.CamXOffset)
-        RadarAnglesV=np.abs(np.degrees(np.arctan(temp2.astype(float)))) #will always be negative, so correct for it
-        CameraX=np.dot(self.RadarTargetOpt1Data.track_angle,(LocalImage.shape[1]/190)) + LocalImage.shape[1]/2 
-        CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
-        LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
-        LocalImage=cv2.putText(LocalImage,str('O1'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-         # For Option2:
-        temp2=np.divide(self.CamZoffset,self.RadarTargetOpt2Data.track_range+self.CamXOffset)
-        RadarAnglesV=np.abs(np.degrees(np.arctan(temp2.astype(float)))) #will always be negative, so correct for it
-        CameraX=np.dot(self.RadarTargetOpt2Data.track_angle,(LocalImage.shape[1]/190)) + LocalImage.shape[1]/2 
-        CameraY=np.dot(RadarAnglesV,(LocalImage.shape[0]/39.375)) +512/2 # Number of pixels per degree,adjusted for shifting origin from centerline to top left
-        LocalImage=cv2.circle(LocalImage, (int(CameraX),int(CameraY)), 12, [0,165,255],3)
-        LocalImage=cv2.putText(LocalImage,str('O2'),(int(CameraX),int(CameraY)),self.font,1,(255,105,180),2)
-        self.image_pub.publish(self.bridge.cv2_to_imgmsg(LocalImage, "bgr8"))
+                    else:
+                        # idx=idx+1
+                        if (idx >=(ZnewEng.shape[0]-2)) and targetAccel>=upper:
+                            throttle_out=0.8 
+
+                        else:
+                            continue
+        if targetAccel<=0:
+            if self.CurrentVel<1 or self.completeStop==1: #1 m/s, ~ 2MPH and aarget accel is negative 
+                brake_out=275 # hardcoded value
+                self.completeStop=1 # set flag
+            self.throttle_class.enable=False 
+            self.throttle_class.pedal_cmd=0
+            self.throttle_class.pedal_cmd_type=0
+            self.brake_class.enable=True# Enable Brake, disable throttle
+            #brake_class.pedal_cmd_type= 2# Mode2, Percent of maximum torque, from 0 to 1
+            self.brake_class.pedal_cmd_type= 4# Mode1, Unitless, Range 0.15 to 0.5
+            #brake_class.pedal_cmd=brakeGain*abs(data.data)*m*r_wh/ # For Mode 2
+            # smoothen the brake command:
+            brake_out_smooth=(self.PrevBrkCmd+brake_out)/2
+            self.brake_class.pedal_cmd=brake_out_smooth # For Mode 1
+            self.PrevBrkCmd=brake_out
+        else:
+            self.brake_class.enable=False # Disable Brake, enable throttle
+            self.brake_class.pedal_cmd=0
+            self.brake_class.pedal_cmd_type=0
+            self.throttle_class.enable=True
+            self.throttle_class.pedal_cmd_type=1 # Using 0.15 to 0.8
+            self.throttle_class.pedal_cmd=throttle_out# Originally stable, remove after enginemap works
+            #throttle_class.pedal_cmd=0.6*throttle_out
+        if not rospy.is_shutdown():
+            log_Str = ('\n Brake: ', self.brake_class.pedal_cmd, ' \n Throttle:', self.throttle_class.pedal_cmd)
+            rospy.loginfo(log_Str)
+            self.brake_pub.publish(self.brake_class)
+            self.throttle_pub.publish(self.throttle_class)
+
+    def velfun(self,data):
+        self.CurrentVel=data.twist.linear.x
+    def accelfun(self,data):
+        self.CurrentAccel=data.accel_over_ground
 
 if __name__=='__main__':
     try:

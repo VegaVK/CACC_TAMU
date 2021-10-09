@@ -4,24 +4,27 @@ import rospy
 import pymap3d as pm
 import numpy as np
 from bagpy import bagreader
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
 def main():
     
     accInst=SpacingErrorPlot()
-    rospy.spin()
+
 
 class SpacingErrorPlot ():
     def __init__(self):
        
-        self.TotalVehs=4 # including LV
+        self.TotalVehs=7 # including LV
+        self.BagNo=2 # LV manuever number
         self.Direction=1 # +1== North, (-1)==South
 
         ### ****PARAMETERS ****
-        self.Gamma1=1.0 # Packet reception rate (out of 1.0)
+        # self.Gamma1=1.0 # Packet reception rate (out of 1.0)
         self.CurrentVel=0 # Start condition
-        self.timeHeadway=0.45# In seconds
+        self.timeHeadway=0.57# In seconds
         self.L=1 #in meters
         # self.Kp=0.2
         # self.Kv=0.3
@@ -46,13 +49,13 @@ class SpacingErrorPlot ():
         self.Accel=[]
         for vIdx in range(self.TotalVehs):
             if vIdx==0:
-                # CarBag=bagreader('/home/mkz/mkzbag/2021Oct6/LVBag1.bag')
+                CarBag=bagreader('/home/mkz/mkzbag/2021Oct8/OkTune9/LVBag'+str(self.BagNo)+'.bag')
                 # CarBag=bagreader('/home/vamsi/Downloads/ATemp/2021Oct6/LVBag1.bag')
-                CarBag=bagreader('V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\LVBag1.bag')
+                # CarBag=bagreader('V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\LVBag1.bag')
             else:
-                # prevVehPath='/home/mkz/mkzbag/2021Oct6//FV'+str(vIdx)+'_CACC1.bag'
+                prevVehPath='/home/mkz/mkzbag/2021Oct8/OkTune9/Bag'+str(self.BagNo)+'FV'+str(vIdx)+'_CACC1.bag'
                 # prevVehPath='/home/vamsi/Downloads/ATemp/2021Oct6/FV'+str(vIdx)+'_CACC1.bag'
-                prevVehPath='V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\FV'+str(vIdx)+'_CACC1.bag'
+                # prevVehPath='V:\OneDrive - Texas A&M University\Research\CACC Research\Lincoln\BagFiles\2021Oct6\FV'+str(vIdx)+'_CACC1.bag'
                 CarBag=bagreader(prevVehPath)
             Bagfile = CarBag.message_by_topic(topic='/piksi/navsatfix_best_fix')
             TempPos=np.loadtxt(open(Bagfile, "rb"), delimiter=",", skiprows=1, usecols = (0,7,8,9)) # [Time (s). Lat, Lon, Alt]
@@ -78,16 +81,18 @@ class SpacingErrorPlot ():
             self.Accel.append(TempAccel)
         self.plotter()
 
-    def plotter(self,data):
+    def plotter(self):
         for vIdx in range(1,self.TotalVehs):
             vecLength=min(self.Pos[vIdx].shape[0], self.Pos[vIdx-1].shape[0])
             delX=np.zeros((vecLength,1))
             for idx in range(vecLength):
                 delX[idx]=(self.Direction*(self.Pos[vIdx-1][idx,2]-self.Pos[vIdx][idx,2])-self.L-self.timeIndexSel(self.Vel[vIdx], self.Pos[vIdx][idx,0])*self.timeHeadway)
         
-            plt.plot(self.Pos[vIdx][:,0], delX)
+            plt.plot(self.Pos[vIdx][0:vecLength,0], delX)
         plt.ylabel('Spacing Error')
-        plt.xlable('Time (s)')
+        plt.xlabel('Time (s)')
+        plt.legend(['e_1', 'e_2','e_3','e_4','e_5','e_6'])
+        plt.grid(axis='both')
         plt.show()
     
     def timeIndexSel(self,DataMat,targetTime):

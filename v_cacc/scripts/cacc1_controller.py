@@ -25,13 +25,14 @@ class CACCcontroller():
     def __init__(self):
         ## **** CONFIGURATION *****
         self.PL_Enable=True # Packet losses are enabled, if true
-        self.VehNumber=1 # FV number
+        self.VehNumber=6 # FV number
+        self.BagNo=2 # LV maneuver number
         self.Direction=1 # +1== North, (-1)==South
 
         ### ****PARAMETERS ****
         self.Gamma1=1.0 # Packet reception rate (out of 1.0)
         self.CurrentVel=0 # Start condition
-        self.timeHeadway=0.45# In seconds
+        self.timeHeadway=0.57# In secaonds
         self.L=1 #in meters
         self.Kp=0.2
         self.Kv=0.3
@@ -52,9 +53,9 @@ class CACCcontroller():
 
         ## **** BAG FILES ****
         if self.VehNumber==1:
-            self.bLV=bagreader('/home/vamsi/catkin_ws/src/CACC_TAMU/v_cacc/LVBag.bag')
+            self.bLV=bagreader('/home/mkz/mkzbag/2021Oct8/LVBag'+str(self.BagNo)+'.bag')
         else:
-            prevVehPath='/home/vamsi/catkin_ws/src/CACC_TAMU/v_cacc/FV'+str(self.VehNumber-1)+'_CACC1.bag'
+            prevVehPath='/home/mkz/mkzbag/2021Oct8/Bag'+str(self.BagNo)+'FV'+str(self.VehNumber-1)+'_CACC1.bag'
             self.bLV=bagreader(prevVehPath)
         #Position:
         bLVfile1 = self.bLV.message_by_topic(topic='/piksi/navsatfix_best_fix')
